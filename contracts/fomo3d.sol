@@ -38,9 +38,7 @@ contract fomo3d {
             )
         );
     bytes32 public constant CLAIM_TRANSACTION_TYPEHASH =
-        keccak256(
-            bytes("Claim(address _account,uint256 _number,uint256 nonce)")
-        );
+        keccak256(bytes("Claim(address account,uint256 number,uint256 nonce)"));
 
     event BnbBuy(
         address account,
@@ -88,12 +86,15 @@ contract fomo3d {
     }
 
     function setActionTime(uint256 _time) external onlyOwner {
+        console.log("block.timestamp", block.timestamp);
         require(
             _time > block.timestamp,
             "Set time must be greater than the current time"
         );
         start_time[rounds] = _time;
-        end_time[rounds] = block.timestamp.add(24 * 60 * 20 * 3);
+        console.log("start_time[rounds]", start_time[rounds]);
+        end_time[rounds] = _time.add(24 * 60 * 20 * 3);
+        console.log("end_time[rounds]", end_time[rounds]);
     }
 
     function nonceOf(address account) public view returns (uint256) {
@@ -103,22 +104,32 @@ contract fomo3d {
     function _buy_key(
         uint256 _buy_num,
         group _team,
-        uint64 _rounds
+        uint256 _rounds
     ) internal {
+        console.log("_buy_key");
+        console.log("end_time", end_time[rounds]);
         require(_rounds == rounds, "rounds error");
         if (block.timestamp >= end_time[_rounds]) {
+            console.log("1");
             rounds = rounds.add(1);
-            end_time[rounds] = block.timestamp.add(24 * 60 * 20 * 3);
+            end_time[rounds] = end_time[rounds].add(24 * 60 * 20 * 3);
             key_final_price = key_init_price;
+            console.log("rounds ", rounds);
+            console.log("end_time", end_time[rounds]);
+            console.log("key_final_price", key_final_price);
         } else {
+            console.log("2");
             team[msg.sender][rounds] = _team;
-            uint256 final_key_price = key_increasing_price.mul(_buy_num);
-            uint256 final_num = final_key_price.add(key_final_price);
-            key_final_price = final_key_price;
-            final_num = final_num.mul(_buy_num);
-            final_num = final_num.div(2);
-            require(final_num == msg.value, "Insufficient payment");
-            end_time[rounds] = block.timestamp.add(24 * 60 * 20 * 3);
+            uint256 key_add_price = key_increasing_price.mul(_buy_num.sub(1));
+            uint256 final_price = key_add_price.add(key_final_price);
+            uint256 one_last_price = final_price.add(key_final_price);
+            key_final_price = final_price.add(key_increasing_price);
+            one_last_price = one_last_price.mul(_buy_num);
+            one_last_price = one_last_price.div(2);
+            console.log("one_last_price", one_last_price);
+            console.log("msg.value", msg.value);
+            require(one_last_price == msg.value, "Insufficient payment");
+            end_time[rounds] = end_time[rounds].add(_buy_num.mul(30));
         }
     }
 
@@ -133,7 +144,7 @@ contract fomo3d {
 
     function vaultBuy(
         uint256 _buy_num,
-        uint256 _team,
+        group _team,
         uint256 _rounds,
         address _account,
         uint256 nonce,
@@ -141,24 +152,10 @@ contract fomo3d {
         bytes32 r,
         bytes32 s
     ) external payable {
-        console.log("vault buy                   1!!!!!");
-        console.log("_buy_num ", _buy_num);
-        // console.log(_team == group.two);
-        console.log("_team ", _team);
-        console.log("_rounds ", _rounds);
-        console.log("_account ", _account);
-        console.log("nonce ", nonce);
-        // console.log(
-        //     "abi ",
-        //     abi.encode(
-        //         VAULTBUY_TRANSACTION_TYPEHASH,
-        //         _buy_num,
-        //         _team,
-        //         _rounds,
-        //         _account,
-        //         nonce
-        //     )
-        // );
+        console.log("vault buy   ");
+        console.log(_account);
+        console.log(_buy_num);
+        console.log(nonce);
         bytes32 digest = keccak256(
             abi.encodePacked(
                 "\x19\x01",
@@ -176,17 +173,15 @@ contract fomo3d {
             )
         );
         address recoveredAddress = ecrecover(digest, v, r, s);
-        console.log("vault buy                   1!!!!!");
         console.log(recoveredAddress);
-        console.log(owner);
-        // require(
-        //     recoveredAddress == owner &&
-        //         _account == msg.sender &&
-        //         _buy_num > uint256(0) &&
-        //         _rounds > uint256(0) &&
-        //         nonce > _nonce[_account]
-        // );
-        // _buy_key(_buy_num, _team, _rounds);
+        require(
+            recoveredAddress == owner &&
+                _account == msg.sender &&
+                _buy_num > uint256(0) &&
+                _rounds > uint256(0) &&
+                nonce > _nonce[_account]
+        );
+        _buy_key(_buy_num, _team, _rounds);
         _nonce[_account]++;
 
         // emit VaultBuy(msg.sender, msg.value, _buy_num, _team, _rounds);
@@ -200,6 +195,9 @@ contract fomo3d {
         bytes32 r,
         bytes32 s
     ) public {
+        console.log(_account);
+        console.log(_number);
+        console.log(nonce);
         bytes32 digest = keccak256(
             abi.encodePacked(
                 "\x19\x01",
@@ -216,6 +214,7 @@ contract fomo3d {
         );
 
         address recoveredAddress = ecrecover(digest, v, r, s);
+        console.log("recoveredAddress", recoveredAddress);
         require(
             recoveredAddress == owner &&
                 _account == msg.sender &&
